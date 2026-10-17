@@ -31,3 +31,5 @@ All: > 300 mi range, > 230 mph top speed.
 - Body is a hand-built procedural model from photos, not a scan. Proportions estimated.
 - Doors don't open. No driver displays. Air mass leaving the tanks doesn't lighten the car.
 - Exhaust velocity of cold air (~700 m/s) and compressor refill rate are our estimates; they set ~2 s of full thrust / ~11 s hover per tank.
+- Not built: opening butterfly doors, the two small driver displays, touch/gamepad controls, multiplayer.
+- `ref/r*.jpg` are Tesla press photos (via electrek/paultan): reference only, strip them before any public repo.

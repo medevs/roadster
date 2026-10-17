@@ -13,8 +13,8 @@ const T = {
   driveForceCap: 1.9,    // EST × m·g motor limit; Performance trim lands near its quoted <1.6 s 0-60
   fanPull: [0, 0.35, 2.0], // × m·g for OFF / ROAD / MAX GRIP; FACT "up to 2 G", holds the car on the 170° wall
   CdA: 0.55, wingClA: 1.4, rho: 1.2,
-  mainThrust: 50_000,    // N, 4 rear diffuser nozzles (EST split of FACT ">80 kN" total)
-  liftThrust: 30_000,    // N, 4 corner nozzles (Rocket trim)
+  mainThrust: 45_000,    // N, 4 rear diffuser nozzles (EST split of FACT ">80 kN" total)
+  liftThrust: 40_000,    // N, 4 corner nozzles (Rocket trim), clears the Semi from ~40 m out at 100 km/h
   attitudeTorque: 9000,  // N·m, attitude-control thrusters (FACT they exist, EST size)
   airKg: 250,            // FACT 2 COPVs, 600 L, ~250 kg of air
   ve: 700,               // EST m/s cold-air exhaust velocity -> ~2.2 s of full thrust
@@ -97,7 +97,7 @@ const S = {
   zeroT: -1, zeroDone: 0, prevVel: new THREE.Vector3(), g: 1, mainT: 0, liftT: [0, 0, 0, 0], brake: false, speed: 0, alt: 0,
   wheelsDown: 0, t: 0,
 };
-(window as any).__S = S; (window as any).__chassis = chassis;
+(window as any).__S = S; (window as any).__chassis = chassis; (window as any).__vehicle = vehicle;
 
 const v3 = (v: { x: number; y: number; z: number }) => new THREE.Vector3(v.x, v.y, v.z);
 const LIFT_PTS = [[0.82, 1.85], [-0.82, 1.85], [0.82, -1.8], [-0.82, -1.8]];
@@ -147,7 +147,7 @@ function step(dt: number) {
   S.brake = braking || handbrake;
   for (let i = 0; i < 4; i++) {
     vehicle.setWheelEngineForce(i, drive / 4);
-    vehicle.setWheelBrake(i, braking ? 900 : (handbrake && i >= 2 ? 1500 : (thr || rev ? 0 : 25)));
+    vehicle.setWheelBrake(i, braking ? 900 : (handbrake && i >= 2 ? 1500 : (thr || rev ? 0 : 6)));
   }
   // speed-sensitive steer, eased
   const maxSteer = 0.6 / (1 + Math.abs(vF) / 14);
