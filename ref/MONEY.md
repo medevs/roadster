@@ -55,3 +55,17 @@ B (reply under rauchg/ammaar)
 C (records hook)
 > 0-60 in 1.56 s. Cleared the Semi by 7.1 m. 50 m flight.
 > Beat my runs: [link]
+
+## No-audience playbook (added 2026-10-17, live at roadster-azure.vercel.app)
+You don't need followers when someone else's audience does the work. Ranked by money per owner-hour:
+
+1. **Game portals: they bring the players and pay ad share** (needs no audience).
+   - CrazyGames: anyone can upload, human QA, 50M+ monthly players. Basic Launch (no SDK) → Full Launch (SDK + ads). CLAIM: 60% of ad revenue to the dev (CrazyGames × GameMaker jam guide, 2025-09), payout from €100 via Tipalti. Non-exclusive, so our own site keeps running.
+   - Poki: invite-only, human-reviewed, initial download < 8 MB, 16:9, Poki SDK. 50/50 on the traffic they send. CLAIM (Cinevva guide): $500-3,000/month for a first web game.
+   - GameDistribution 33%, GamePix/GameMonetize 45%, Y8 50%. Flat-fee licence $300-800 non-exclusive.
+   - Problem: the portal versions need "Tesla" removed everywhere and probably a generic "flying supercar" skin (trademark). That's an owner call.
+2. **Borrowed audiences (free).** Replies with a clip under the posts that already have the views (@rauchg 101k, @ammaar 220k, @ThisIsKodiak 56k). One Reddit post with a gif/clip is the most common trigger for zero-follower hits (Hex FRVR, an itch.io idle game): r/threejs, r/webgames, r/InternetIsBeautiful, r/teslamotors (check rules). One Show HN post. FACT: a zero-traffic webgame got 200k visitors in a day from one viral post (news.ycombinator.com/item?id=43194081). CAUTION: brand-new Reddit/HN accounts get filtered (dev.to/givira).
+3. **Our own YouTube machine.** Shorts of the stunts on NyndraAI ("AI built a playable flying car in a day") with the link. We already render and post daily.
+4. **Billboards** stay in the game. They're worth selling only after #1-#3 bring traffic.
+
+Order: today replies + Reddit (owner posts, needs his accounts) → this week CrazyGames Basic Launch on a de-Tesla'd build → Full Launch with SDK if retention holds.
