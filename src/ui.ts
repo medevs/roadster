@@ -1,5 +1,5 @@
 // Menus, records, sharing, touch controls. DOM lives in index.html.
-export const SITE = 'https://roadster.vercel.app'; // swap for the real domain once bought
+export const SITE = 'https://roadster-azure.vercel.app'; // swap for the real domain once bought
 
 export type Mode = 'menu' | 'play' | 'paused';
 
