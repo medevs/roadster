@@ -68,4 +68,4 @@ You don't need followers when someone else's audience does the work. Ranked by m
 3. **Our own YouTube machine.** Shorts of the stunts on NyndraAI ("AI built a playable flying car in a day") with the link. We already render and post daily.
 4. **Billboards** stay in the game. They're worth selling only after #1-#3 bring traffic.
 
-Order: today replies + Reddit (owner posts, needs his accounts) → this week CrazyGames Basic Launch on a de-Tesla'd build → Full Launch with SDK if retention holds.
+Order: today replies + Reddit (owner posts from their own accounts) → this week CrazyGames Basic Launch on a de-Tesla'd build → Full Launch with SDK if retention holds.
