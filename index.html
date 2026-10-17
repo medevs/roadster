@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Roadster: drive and fly the 2028 Tesla Roadster in your browser</title>
+  <meta name="description" content="Drive the new Tesla Roadster, climb the 170° wall with the suction fans, fire the SpaceX cold-gas thrusters and jump five Teslas. Free three.js + Rapier sim." />
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; color: #fff; user-select: none; }
+    #app canvas { display: block; }
+    .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 3px #000; }
+    .lbl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .65; }
+    #tl { top: 18px; left: 20px; }
+    #tl b { font-size: 13px; letter-spacing: .18em; }
+    #dash { bottom: 22px; left: 50%; transform: translateX(-50%); text-align: center; }
+    #spd { font-size: 64px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; }
+    #bar { width: 240px; height: 4px; background: #333; margin: 10px auto 4px; }
+    #air { height: 100%; background: #fff; width: 100%; }
+    #bl, #br { bottom: 26px; }
+    #bl { left: 24px; } #br { right: 24px; text-align: right; }
+    .big { font-size: 30px; font-variant-numeric: tabular-nums; }
+    #toast { top: 20%; left: 50%; transform: translateX(-50%); font-size: 26px; opacity: 0; transition: opacity .4s; }
+    #help { top: 18px; right: 20px; font-size: 12px; line-height: 1.75; background: rgba(0,0,0,.55); padding: 12px 16px; border-radius: 8px; pointer-events: none; }
+    #help kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid #666; border-radius: 4px; text-align: center; font: 11px ui-monospace, monospace; }
+    .hide { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="hud" id="tl"><b>ROADSTER</b><div class="lbl" id="mode"></div></div>
+  <div class="hud" id="toast"></div>
+  <div class="hud" id="dash">
+    <div id="spd">0</div><div class="lbl">km/h · <span id="mph">0 mph</span></div>
+    <div id="bar"><div id="air"></div></div><div class="lbl">Thruster air · <span id="psi"></span></div>
+  </div>
+  <div class="hud" id="bl"><div class="lbl">G-force</div><div class="big" id="g">1.0</div></div>
+  <div class="hud" id="br"><div class="lbl">Altitude m</div><div class="big" id="alt">0.0</div></div>
+  <div class="hud" id="help">
+    <kbd>W</kbd><kbd>S</kbd> drive / brake · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>X</kbd> handbrake<br>
+    <kbd>Shift</kbd> rear thrusters · <kbd>Space</kbd> lift thrusters<br>
+    In the air: <kbd>W</kbd><kbd>S</kbd> pitch · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> yaw<br>
+    <kbd>F</kbd> suction fans (MAX GRIP holds you on the wall) · <kbd>V</kbd> track mode<br>
+    <kbd>1</kbd> Performance · <kbd>2</kbd> Thrust · <kbd>3</kbd> Rocket<br>
+    <kbd>C</kbd> camera · <kbd>R</kbd> right the car · <kbd>T</kbd> back to start · <kbd>H</kbd> hide<br>
+    Wall ramp 260 m ahead · five Teslas to jump at 120 m
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
