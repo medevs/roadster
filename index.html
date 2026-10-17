@@ -2,48 +2,139 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Roadster: drive and fly the 2028 Tesla Roadster in your browser</title>
-  <meta name="description" content="Drive the new Tesla Roadster, climb the 170° wall with the suction fans, fire the SpaceX cold-gas thrusters and jump five Teslas. Free three.js + Rapier sim." />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Roadster Sim: drive and fly the new Roadster in your browser</title>
+  <meta name="description" content="Free browser sim of the flying Roadster revealed in October 2026: suction fans, the 170° wall climb, cold-gas thrusters, the five-car jump. No download, no login." />
+  <meta name="theme-color" content="#000000" />
+  <meta property="og:title" content="Roadster Sim: drive and fly it in your browser" />
+  <meta property="og:description" content="Climb the 170° wall, fire the thrusters, jump five cars. Free, no download." />
+  <meta property="og:image" content="/og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M3 21 L12 12 L26 11 L30 18 L29 22 Z' fill='white'/><rect x='3' y='21' width='26' height='2' fill='red'/></svg>" />
   <style>
-    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; color: #fff; user-select: none; }
+    :root { --fg: #f2f2f2; --dim: rgba(255,255,255,.55); --red: #ff2a1a; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: var(--fg); user-select: none; -webkit-user-select: none; touch-action: none;
+      font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
     #app canvas { display: block; }
-    .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 3px #000; }
-    .lbl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .65; }
-    #tl { top: 18px; left: 20px; }
-    #tl b { font-size: 13px; letter-spacing: .18em; }
-    #dash { bottom: 22px; left: 50%; transform: translateX(-50%); text-align: center; }
-    #spd { font-size: 64px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; }
-    #bar { width: 240px; height: 4px; background: #333; margin: 10px auto 4px; }
-    #air { height: 100%; background: #fff; width: 100%; }
-    #bl, #br { bottom: 26px; }
+    .hide { display: none !important; }
+    .lbl { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+    .num { font-variant-numeric: tabular-nums; }
+
+    /* in-game HUD: only while playing */
+    .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+    body:not(.playing) .hud { display: none; }
+    #tl { top: max(16px, env(safe-area-inset-top)); left: 20px; }
+    #tl b { font-size: 13px; letter-spacing: .3em; font-weight: 600; }
+    #dash { bottom: max(22px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); text-align: center; }
+    #spd { font-size: 68px; font-weight: 200; line-height: 1; }
+    #bar { width: 220px; height: 3px; background: rgba(255,255,255,.18); margin: 10px auto 5px; border-radius: 2px; overflow: hidden; }
+    #air { height: 100%; background: var(--fg); width: 100%; transition: width .1s; }
+    #bl, #br { bottom: max(26px, env(safe-area-inset-bottom)); }
     #bl { left: 24px; } #br { right: 24px; text-align: right; }
-    .big { font-size: 30px; font-variant-numeric: tabular-nums; }
-    #toast { top: 20%; left: 50%; transform: translateX(-50%); font-size: 26px; opacity: 0; transition: opacity .4s; }
-    #help { top: 18px; right: 20px; font-size: 12px; line-height: 1.75; background: rgba(0,0,0,.55); padding: 12px 16px; border-radius: 8px; pointer-events: none; }
-    #help kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid #666; border-radius: 4px; text-align: center; font: 11px ui-monospace, monospace; }
-    .hide { display: none; }
+    .big { font-size: 30px; font-weight: 300; }
+    #toast { top: 18%; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 300; opacity: 0; transition: opacity .4s; white-space: nowrap; }
+    #help { top: 16px; right: 70px; font-size: 12px; line-height: 1.8; background: rgba(0,0,0,.5); padding: 12px 16px; border-radius: 10px; backdrop-filter: blur(6px); }
+    kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; text-align: center; font: 11px ui-monospace, monospace; }
+    #b-pause { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 16px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.4); color: #fff; font-size: 15px; cursor: pointer; }
+    body:not(.playing) #b-pause { display: none; }
+    #share { position: fixed; top: calc(18% + 44px); left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 99px; background: #fff; color: #000; font-size: 13px; font-weight: 600; text-decoration: none; }
+
+    /* menus */
+    .panel { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: max(28px, env(safe-area-inset-top)) 36px max(28px, env(safe-area-inset-bottom));
+      background: linear-gradient(90deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,0) 70%); }
+    .panel h1 { font-size: clamp(40px, 7vw, 84px); font-weight: 200; letter-spacing: .32em; margin: 0 0 6px; }
+    .panel h2 { font-size: 26px; font-weight: 300; letter-spacing: .2em; margin: 0 0 18px; }
+    .tag { color: var(--dim); max-width: 420px; line-height: 1.5; margin: 0 0 26px; font-size: 15px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    button.btn { font: inherit; font-size: 14px; letter-spacing: .08em; padding: 13px 26px; border-radius: 6px; cursor: pointer; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.06); color: #fff; }
+    button.btn:hover, button.btn:focus-visible { background: rgba(255,255,255,.16); outline: none; }
+    button.primary { background: #fff; color: #000; border-color: #fff; font-weight: 600; padding: 15px 44px; }
+    button.primary:hover { background: #ddd; }
+    button.sel { border-color: #fff; background: rgba(255,255,255,.2); }
+    .trim small { display: block; font-size: 11px; color: var(--dim); letter-spacing: 0; margin-top: 3px; }
+    ul.recs { list-style: none; padding: 0; margin: 0 0 22px; max-width: 380px; font-size: 13px; }
+    ul.recs li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.1); }
+    ul.recs b { font-weight: 500; }
+    .foot { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 18px; line-height: 1.6; }
+    .foot a { color: rgba(255,255,255,.7); }
+    #pause { background: rgba(0,0,0,.72); backdrop-filter: blur(8px); justify-content: center; align-items: flex-start; }
+
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #000; font-size: 13px; letter-spacing: .3em; color: var(--dim); text-align: center; padding: 30px; }
+
+    /* touch controls */
+    #touch { position: fixed; inset: auto 0 0 0; height: 46vh; pointer-events: none; }
+    body:not(.playing) #touch { display: none; }
+    #touch .pad { position: absolute; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; gap: 10px; pointer-events: auto; }
+    #touch .l { left: 14px; } #touch .r { right: 14px; flex-direction: row-reverse; }
+    #touch button { width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.35); color: #fff; font: 600 12px system-ui; touch-action: none; }
+    #touch button.on { background: rgba(255,255,255,.35); }
+    #touch .col { display: flex; flex-direction: column; gap: 10px; }
+    @media (pointer: coarse) { #dash { bottom: 120px; } #spd { font-size: 44px; } #bl, #br { display: none; } }
   </style>
 </head>
 <body>
+  <div id="loading">LOADING<br><br><span id="err"></span></div>
+  <script>
+    // shown if WebGL or the physics engine can't start, instead of a black screen
+    addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'This browser could not start the 3D engine (' + (e.message || 'WebGL') + '). Try Chrome, Edge or Safari with hardware acceleration on.'; });
+    addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'Could not start: ' + (e.reason && e.reason.message || e.reason); });
+  </script>
   <div id="app"></div>
+
   <div class="hud" id="tl"><b>ROADSTER</b><div class="lbl" id="mode"></div></div>
   <div class="hud" id="toast"></div>
   <div class="hud" id="dash">
-    <div id="spd">0</div><div class="lbl">km/h · <span id="mph">0 mph</span></div>
-    <div id="bar"><div id="air"></div></div><div class="lbl">Thruster air · <span id="psi"></span></div>
+    <div id="spd" class="num">0</div><div class="lbl">km/h · <span id="mph">0 mph</span></div>
+    <div id="bar"><div id="air"></div></div><div class="lbl">Thruster air · <span id="psi" class="num"></span></div>
   </div>
-  <div class="hud" id="bl"><div class="lbl">G-force</div><div class="big" id="g">1.0</div></div>
-  <div class="hud" id="br"><div class="lbl">Altitude m</div><div class="big" id="alt">0.0</div></div>
+  <div class="hud" id="bl"><div class="lbl">G-force</div><div class="big num" id="g">1.0</div></div>
+  <div class="hud" id="br"><div class="lbl">Altitude m</div><div class="big num" id="alt">0.0</div></div>
   <div class="hud" id="help">
     <kbd>W</kbd><kbd>S</kbd> drive / brake · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>X</kbd> handbrake<br>
     <kbd>Shift</kbd> rear thrusters · <kbd>Space</kbd> lift thrusters<br>
     In the air: <kbd>W</kbd><kbd>S</kbd> pitch · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> yaw<br>
-    <kbd>F</kbd> suction fans (MAX GRIP holds you on the wall) · <kbd>V</kbd> track mode<br>
-    <kbd>1</kbd> Performance · <kbd>2</kbd> Thrust · <kbd>3</kbd> Rocket<br>
-    <kbd>C</kbd> camera · <kbd>R</kbd> right the car · <kbd>T</kbd> back to start · <kbd>H</kbd> hide<br>
-    Five Teslas at 120 m: hold <kbd>Space</kbd> from ~90 m · Wall at 260 m: <kbd>F</kbd> MAX GRIP, enter under 80 km/h
+    <kbd>F</kbd> fans · <kbd>V</kbd> track mode · <kbd>G</kbd> easy/sim · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> trim<br>
+    <kbd>C</kbd> camera · <kbd>R</kbd> right car · <kbd>T</kbd> restart · <kbd>M</kbd> mute · <kbd>Esc</kbd> pause · <kbd>H</kbd> hide<br>
+    Five cars at 120 m: hold <kbd>Space</kbd> from ~90 m · Wall at 260 m
   </div>
+  <button id="b-pause" aria-label="Pause">❚❚</button>
+  <a id="share" class="hide" target="_blank" rel="noopener">Share on X</a>
+
+  <section id="menu" class="panel hide">
+    <div class="lbl" style="margin-bottom:10px">Fan-made sim · October 2026 reveal</div>
+    <h1>ROADSTER</h1>
+    <p class="tag">Drive it, stick it to a 170° wall with the suction fans, fire the cold-gas thrusters and jump five cars. Physics from every number published at the reveal.</p>
+    <div class="row">
+      <button class="btn trim" data-trim="Performance">Performance<small>fans + aero, no jets</small></button>
+      <button class="btn trim" data-trim="Thrust">Thrust<small>+ rear jets, 0-60 &lt;0.9 s</small></button>
+      <button class="btn trim" data-trim="Rocket">Rocket<small>+ lift jets, it flies</small></button>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="b-play">DRIVE</button>
+      <button class="btn" id="t-easy"></button>
+      <button class="btn" id="t-mute"></button>
+    </div>
+    <ul class="recs" id="recs"></ul>
+    <div class="foot">Fan-made project, not affiliated with or endorsed by Tesla or SpaceX. Specs from public reveal coverage; unknowns are estimates.<br>
+      Billboard and sponsor slots open: <a href="https://x.com/medevsmaker" target="_blank" rel="noopener">DM @medevsmaker</a></div>
+  </section>
+
+  <section id="pause" class="panel hide">
+    <h2>PAUSED</h2>
+    <div class="row"><button class="btn primary" id="b-resume">RESUME</button><button class="btn" id="b-restart">Restart</button><button class="btn" id="b-menu">Main menu</button></div>
+    <ul class="recs" id="recs2"></ul>
+  </section>
+
+  <div id="touch" class="hide">
+    <div class="pad l"><button data-key="KeyA">◀</button><button data-key="KeyD">▶</button></div>
+    <div class="pad r">
+      <div class="col"><button data-key="Space">LIFT</button><button data-key="KeyW">GO</button></div>
+      <div class="col"><button data-key="ShiftLeft">JET</button><button data-key="KeyS">BRAKE</button></div>
+      <div class="col"><button data-key="KeyC">CAM</button><button data-key="KeyR">FLIP</button></div>
+    </div>
+  </div>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

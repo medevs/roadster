@@ -106,6 +106,7 @@ export type RoadsterModel = {
   screen: { canvas: HTMLCanvasElement; tex: THREE.CanvasTexture };
   plumes: { mesh: THREE.Mesh; kind: 'main' | 'lift' }[];
   brakeLight: THREE.MeshStandardMaterial;
+  starman: THREE.Group;
 };
 
 export function createRoadsterModel(): RoadsterModel {
@@ -290,6 +291,24 @@ export function createRoadsterModel(): RoadsterModel {
   const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, 0.015), black);
   bezel.position.set(0.02, 0.88, 0.55); bezel.rotation.x = 0.25; root.add(bezel);
 
+  // Starman: white suit, black visor (the reveal car drove with a suited mannequin)
+  const starman = new THREE.Group();
+  const suit = new THREE.MeshStandardMaterial({ color: 0xf4f4f2, roughness: 0.6 });
+  const visor = new THREE.MeshPhysicalMaterial({ color: 0x050505, metalness: 0.9, roughness: 0.05, clearcoat: 1 });
+  const cap = (r: number, l: number, m: THREE.Material) => new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 4, 10), m);
+  const torso = cap(0.17, 0.32, suit); torso.position.set(0, 0.62, -0.62); torso.rotation.x = -0.32;
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.14, 20, 14), suit); helmet.position.set(0, 0.98, -0.72);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 14, -Math.PI / 2, Math.PI, 0.6, 1.5), visor);
+  face.position.copy(helmet.position).add(new THREE.Vector3(0, 0, 0.04));
+  starman.add(torso, helmet, face);
+  for (const s of [1, -1]) {
+    const thigh = cap(0.075, 0.38, suit); thigh.position.set(s * 0.1, 0.42, -0.3); thigh.rotation.x = Math.PI / 2 - 0.15;
+    const arm = cap(0.06, 0.3, suit); arm.position.set(s * 0.17, 0.72, -0.4); arm.rotation.x = -1.0; arm.rotation.z = s * 0.15;
+    starman.add(thigh, arm);
+  }
+  starman.position.x = 0.4;
+  root.add(starman);
+
   root.traverse(o => { if ((o as THREE.Mesh).isMesh && o !== cabin) o.castShadow = true; });
-  return { root, wheels, yoke, wing, screen: { canvas, tex }, plumes, brakeLight: tailMat };
+  return { root, wheels, yoke, wing, screen: { canvas, tex }, plumes, brakeLight: tailMat, starman };
 }

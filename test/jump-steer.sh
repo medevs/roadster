@@ -1,6 +1,6 @@
 # Checks: steering direction (A = left = +X), wheel spin sign, five-car jump with lift thrusters.
 ab(){ agent-browser "$@"; }
-ab open http://localhost:5179 >/dev/null; sleep 3
+ab open http://localhost:5179/?autoplay >/dev/null; sleep 3
 ab eval "__chassis.setLinvel({x:0,y:0,z:15},true);__keys.add('KeyA');__keys.add('KeyW');window.__r0=null;1" >/dev/null
 ab eval "1" >/dev/null; sleep 1
 ab eval "__keys.clear();'steer A -> x='+__chassis.translation().x.toFixed(2)+' (want >0)'"

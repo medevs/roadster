@@ -1,8 +1,13 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createRoadsterModel, DIM } from './model';
-import { buildWorld, RAMP } from './world';
+import { buildWorld, RAMP, ROW, JUMP_ROW_Z } from './world';
+import { bindTouch, better, LABEL, loadRecords, renderRecords, saveRecords, shareUrl, type Mode, type Records } from './ui';
 
 // ---- Tuning. FACT = Tesla/reveal coverage 2026-10-15; EST = our estimate (Tesla gave no figure) ----
 const T = {
@@ -43,7 +48,15 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.55;
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 3000);
+// glow on light bars, neon and thruster plumes; skipped on phones to keep 60 fps
+const LOW = matchMedia('(pointer: coarse)').matches;
+if (LOW) { renderer.setPixelRatio(1); renderer.shadowMap.enabled = false; }
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+if (!LOW) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.5, 0.85));
+composer.addPass(new OutputPass());
 addEventListener('resize', () => {
+  composer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
@@ -87,11 +100,17 @@ const keys = new Set<string>();
 const once = new Set<string>();
 addEventListener('keydown', e => { if (!keys.has(e.code)) once.add(e.code); keys.add(e.code); audio.start(); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
 addEventListener('keyup', e => keys.delete(e.code));
+// a key released while the tab is hidden never fires keyup: clear everything and pause
+addEventListener('blur', () => { keys.clear(); if (S.mode === 'play') setMode('paused'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { keys.clear(); if (S.mode === 'play') setMode('paused'); } });
 (window as any).__keys = keys; (window as any).__once = once; // for scripted tests
 const down = (...c: string[]) => c.some(k => keys.has(k));
+const touch = bindTouch(keys, once);
 
 // ---- state ----
 const S = {
+  mode: 'menu' as Mode, easy: true, muted: false,
+  records: loadRecords() as Records, flipT: 0, rowOk: false, rowClear: Infinity, wallMax: 0,
   trim: 'Rocket' as Trim, fan: 1, track: false, cam: 0,
   air: T.airKg, steer: 0, airborne: 0, maxAlt: 0, maxG: 0,
   zeroT: -1, zeroDone: 0, prevVel: new THREE.Vector3(), g: 1, mainT: 0, liftT: [0, 0, 0, 0], brake: false, speed: 0, alt: 0,
@@ -156,6 +175,23 @@ function step(dt: number) {
   vehicle.setWheelSideFrictionStiffness(2, handbrake ? 0.35 : 1);
   vehicle.setWheelSideFrictionStiffness(3, handbrake ? 0.35 : 1);
 
+  const p0 = chassis.translation();
+  const nearWall = p0.z > RAMP.z0 - 45 && p0.z < RAMP.z0 + RAMP.R + 3 && Math.abs(p0.x) < RAMP.width;
+  if (S.easy) {
+    // stability control: steer the yaw rate toward what the front wheels ask for, damp body roll
+    if (onGround) {
+      const w = v3(chassis.angvel());
+      const want = (vF * Math.tan(S.steer)) / DIM.wheelbase;
+      chassis.addTorque(up.clone().multiplyScalar((want - w.dot(up)) * T.mass * 2), true);
+      chassis.addTorque(fwd.clone().multiplyScalar(-w.dot(fwd) * T.mass * 1.5), true);
+    }
+    // wall assist: the 11 m pipe is a ~45 g loop at 250 km/h, so cap entry speed and max the fans
+    if (nearWall) {
+      S.fan = 2;
+      if (p0.z < RAMP.z0 && vF > 22) for (let i = 0; i < 4; i++) { vehicle.setWheelEngineForce(i, 0); vehicle.setWheelBrake(i, 500); }
+    }
+  }
+
   // aero drag + wing downforce, fan suction (only works with the floor near a surface)
   const vSq = speed * speed;
   if (speed > 0.1) chassis.addForce(vel.clone().multiplyScalar(-0.5 * T.rho * T.CdA * speed), true);
@@ -200,8 +236,8 @@ function step(dt: number) {
     used += 2000;
   }
   // flight stabiliser (FACT: electric nozzle actuators "stabilise the car in flight"): PD toward level
-  // on whichever axes the pilot isn't commanding
-  if (hasLift && contacts === 0 && S.air > 0) {
+  // on whichever axes the pilot isn't commanding. Easy mode keeps it on for every trim, off the wall.
+  if ((hasLift && S.air > 0 || S.easy && !nearWall) && contacts === 0) {
     const tilt = new THREE.Vector3().crossVectors(up, new THREE.Vector3(0, 1, 0)); // axis·sin(angle) back to level
     const w = v3(chassis.angvel());
     const tq = tilt.multiplyScalar(22000).addScaledVector(w, -11000);
@@ -233,15 +269,45 @@ function step(dt: number) {
   else if (S.zeroT < 0 && thr && !S.zeroDone) S.zeroT = S.t;
   if (S.zeroT >= 0 && !S.zeroDone && S.speed >= 26.82) {
     S.zeroDone = 1;
-    toast(`0–60 mph in ${(S.t - S.zeroT).toFixed(2)} s`);
+    const t = S.t - S.zeroT;
+    if (!record('zero60', t)) toast(`0–60 mph in ${t.toFixed(2)} s`);
   }
+
+  // five-car jump: cross the whole row without a wheel touching anything
+  const pz = chassis.translation().z;
+  if (pz < JUMP_ROW_Z - 1) { S.rowOk = true; S.rowClear = Infinity; }
+  else if (pz < ROW.end) {
+    if (contacts > 0) S.rowOk = false;
+    if (pz > ROW.semi[0] && pz < ROW.semi[1]) S.rowClear = Math.min(S.rowClear, S.alt - ROW.semi[2]);
+  } else if (S.rowOk && pz < ROW.end + 3) {
+    S.rowOk = false;
+    if (S.rowClear < Infinity && !record('jump', Math.max(0, S.rowClear))) toast(`Cleared all five Teslas · ${S.rowClear.toFixed(1)} m over the Semi`);
+  }
+
+  // wall: angle round the pipe while the wheels are on it
+  const cp = chassis.translation();
+  const r = Math.hypot(cp.z - RAMP.z0, cp.y - RAMP.R);
+  if (contacts >= 2 && Math.abs(cp.x) < RAMP.width / 2 && r > RAMP.R - 2.5 && r < RAMP.R + 0.5 && cp.z >= RAMP.z0 - 1) {
+    const a = THREE.MathUtils.radToDeg(Math.atan2(cp.z - RAMP.z0, RAMP.R - cp.y));
+    S.wallMax = Math.max(S.wallMax, Math.min(a, 170)); // the pipe ends at 170°
+  } else if (S.wallMax > 20 && contacts === 0 || S.wallMax > 20 && cp.z < RAMP.z0 - 5) {
+    if (!record('wall', S.wallMax)) toast(`Wall climb · ${Math.round(S.wallMax)}°`);
+    S.wallMax = 0;
+  }
+
+  // edge cases: fell out of the world / physics blew up -> start; stuck on roof or side -> right it
+  if (!Number.isFinite(cp.y) || cp.y < -30 || Math.abs(cp.x) > 1900 || Math.abs(cp.z) > 1900) { resetCar(true); toast('Back to the start line'); return; }
+  if (up.y < 0.35 && S.speed < 1.5 && S.alt < 4) {
+    if ((S.flipT += dt) > (S.easy ? 1.5 : 4)) { S.flipT = 0; resetCar(false); toast('Car righted'); }
+  } else S.flipT = 0;
   // airtime
   if (contacts === 0) { S.airborne += dt; S.maxAlt = Math.max(S.maxAlt, S.alt); S.maxG = 0; }
   else {
     if (contacts >= 3) S.maxG = Math.max(S.maxG, S.g);
     if (S.airborne > 0.8) {
       const upright = up.y > 0.6;
-      toast(upright ? `Landed · ${S.airborne.toFixed(1)} s air · ${S.maxAlt.toFixed(1)} m high` : 'Rough landing. R to right the car');
+      const newAlt = record('alt', S.maxAlt), newAir = record('air', S.airborne);
+      if (!newAlt && !newAir) toast(upright ? `Landed · ${S.airborne.toFixed(1)} s air · ${S.maxAlt.toFixed(1)} m high` : 'Rough landing. R to right the car');
     }
     S.airborne = 0; S.maxAlt = 0;
   }
@@ -281,11 +347,12 @@ function updateSmoke(dt: number) {
 // ---- audio (synth: motor whine, thruster roar, wind) ----
 const audio = {
   ctx: null as AudioContext | null, motor: null as OscillatorNode | null, motor2: null as OscillatorNode | null,
-  mg: null as GainNode | null, tg: null as GainNode | null, wg: null as GainNode | null,
+  mg: null as GainNode | null, tg: null as GainNode | null, wg: null as GainNode | null, out: null as GainNode | null,
   start() {
-    if (this.ctx) return;
+    if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
+    if (!window.AudioContext) return; // very old browser: silent game
     const ctx = this.ctx = new AudioContext();
-    const out = ctx.createGain(); out.gain.value = 0.5; out.connect(ctx.destination);
+    const out = this.out = ctx.createGain(); out.gain.value = S.muted ? 0 : 0.5; out.connect(ctx.destination);
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
     this.mg = ctx.createGain(); this.mg.gain.value = 0; lp.connect(this.mg).connect(out);
     this.motor = ctx.createOscillator(); this.motor.type = 'sawtooth'; this.motor.connect(lp); this.motor.start();
@@ -303,6 +370,7 @@ const audio = {
   update(throttle: number, speed: number, thrust: number) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
+    this.out!.gain.setTargetAtTime(S.muted || S.mode !== "play" ? 0 : 0.5, t, 0.05);
     this.motor!.frequency.setTargetAtTime(60 + speed * 11, t, 0.05);
     this.motor2!.frequency.setTargetAtTime(120 + speed * 22, t, 0.05);
     this.mg!.gain.setTargetAtTime(0.03 + throttle * 0.07 + Math.min(speed / 100, 1) * 0.04, t, 0.08);
@@ -315,6 +383,42 @@ const audio = {
 const $ = (id: string) => document.getElementById(id)!;
 let toastTimer = 0;
 function toast(msg: string) { $('toast').textContent = msg; $('toast').style.opacity = '1'; toastTimer = 3; }
+
+// new personal best -> toast + one-tap share to X (the viral loop)
+let shareTimer = 0;
+function record(k: keyof Records, v: number) {
+  if (!(v > 0) || !better(k, v, S.records)) return false;
+  S.records[k] = v; saveRecords(S.records);
+  const [name, fmt] = LABEL[k];
+  toast(`New record · ${name} · ${fmt(v)}`);
+  const a = $('share') as HTMLAnchorElement;
+  a.href = shareUrl(`${name}: ${fmt(v)} in the Roadster sim 🚀 Beat it:`);
+  a.classList.remove('hide'); shareTimer = 7;
+  return true;
+}
+
+function setMode(m: Mode) {
+  S.mode = m; keys.clear();
+  $('menu').classList.toggle('hide', m !== 'menu');
+  $('pause').classList.toggle('hide', m !== 'paused');
+  document.body.classList.toggle('playing', m === 'play');
+  if (m !== 'play') { renderRecords($('recs'), S.records); renderRecords($('recs2'), S.records); syncToggles(); }
+}
+function syncToggles() {
+  $('t-easy').textContent = `Driving: ${S.easy ? 'Easy (assists on)' : 'Sim (no assists)'}`;
+  $('t-mute').textContent = `Sound: ${S.muted ? 'Off' : 'On'}`;
+  document.querySelectorAll<HTMLElement>('[data-trim]').forEach(b => b.classList.toggle('sel', b.dataset.trim === S.trim));
+}
+const play = () => { audio.start(); setMode('play'); };
+$('b-play').onclick = play;
+$('b-resume').onclick = play;
+$('b-restart').onclick = () => { resetCar(true); play(); };
+$('b-menu').onclick = () => { resetCar(true); setMode('menu'); };
+$('t-easy').onclick = () => { S.easy = !S.easy; syncToggles(); };
+$('t-mute').onclick = () => { S.muted = !S.muted; syncToggles(); };
+$('b-pause').onclick = () => setMode('paused');
+document.querySelectorAll<HTMLElement>('[data-trim]').forEach(b => b.onclick = () => { S.trim = b.dataset.trim as Trim; syncToggles(); });
+if (touch) $('help').classList.add('hide');
 
 function drawScreen() {
   const { canvas, tex } = car.screen, c = canvas.getContext('2d')!;
@@ -346,9 +450,14 @@ function updateCamera(dt: number) {
   const p = v3(chassis.translation()), q = new THREE.Quaternion().copy(chassis.rotation() as any);
   const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
-  const view = (window as any).__view as number[] | undefined; // debug: [x,y,z] offset to look at the car from
+  let view = (window as any).__view as number[] | undefined; // debug: [x,y,z] offset to look at the car from
+  if (!view && S.mode === 'menu') { const a = performance.now() / 6000; view = [Math.sin(a) * 8.5, 1.8, Math.cos(a) * 8.5]; } // showroom turntable
   if (view) {
     camera.up.set(0, 1, 0); camera.position.copy(p).add(new THREE.Vector3(...view)); camera.lookAt(p.clone().add(new THREE.Vector3(0, 0.6, 0)));
+    if (S.mode === 'menu' && innerWidth > 700) { // push the car right of the menu text
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      camera.position.addScaledVector(right, -1.2);
+    }
     camera.fov = 35; camera.updateProjectionMatrix(); return;
   }
   if (S.cam === 1) { // cockpit: driver's eye, left seat
@@ -383,6 +492,7 @@ function syncCar() {
     w.rotation.y = vehicle.wheelSteering(i) ?? 0;
     w.getObjectByName('spin')!.rotation.x = vehicle.wheelRotation(i) ?? 0;
   }
+  car.starman.visible = S.cam !== 1;
   car.yoke.rotation.z = -S.steer * 2.2; // yoke turns with the front wheels
   const wingTarget = S.track || S.speed > 45 ? 1 : 0.05;
   car.wing.scale.y += (wingTarget - car.wing.scale.y) * 0.08;
@@ -408,6 +518,10 @@ renderer.setAnimationLoop(() => {
   const now = performance.now();
   const dt = Math.min((now - last) / 1000, 0.05); last = now;
 
+  if (once.has('Escape') || once.has('KeyP')) { if (S.mode === 'play') setMode('paused'); else if (S.mode === 'paused') play(); }
+  if (once.has('Enter') && S.mode !== 'play') play();
+  if (once.has('KeyM')) { S.muted = !S.muted; syncToggles(); }
+  if (once.has('KeyG')) { S.easy = !S.easy; toast(S.easy ? 'Easy driving: assists on' : 'Sim driving: assists off'); }
   if (once.has('KeyC')) S.cam = (S.cam + 1) % 3;
   if (once.has('KeyF')) S.fan = (S.fan + 1) % 3;
   if (once.has('KeyV')) S.track = !S.track;
@@ -419,8 +533,12 @@ renderer.setAnimationLoop(() => {
   if (once.has('KeyH')) $('help').classList.toggle('hide');
   once.clear();
 
-  acc += dt;
-  while (acc >= world.timestep) { step(world.timestep); acc -= world.timestep; }
+  if (S.mode === 'play') {
+    acc += dt;
+    let n = 0; // cap catch-up steps so a slow frame never spirals
+    while (acc >= world.timestep && n++ < 8) { step(world.timestep); acc -= world.timestep; }
+    if (n >= 8) acc = 0;
+  } else acc = 0;
   syncCar();
   updateSmoke(dt);
   updateCamera(dt);
@@ -428,7 +546,9 @@ renderer.setAnimationLoop(() => {
   if (frame++ % 3 === 0) updateHud();
   if (frame % 6 === 0) drawScreen();
   if (toastTimer > 0 && (toastTimer -= dt) <= 0) $('toast').style.opacity = '0';
-  renderer.render(scene, camera);
+  if (shareTimer > 0 && (shareTimer -= dt) <= 0) $('share').classList.add('hide');
+  composer.render();
 });
 
-console.log('ramp at z', RAMP.z0);
+setMode(new URLSearchParams(location.search).has('autoplay') ? 'play' : 'menu');
+$('loading').remove();
