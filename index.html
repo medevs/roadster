@@ -13,65 +13,81 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M3 21 L12 12 L26 11 L30 18 L29 22 Z' fill='white'/><rect x='3' y='21' width='26' height='2' fill='red'/></svg>" />
   <style>
-    :root { --fg: #f2f2f2; --dim: rgba(255,255,255,.55); --red: #ff2a1a; }
+    :root { --fg: #f4f4f5; --dim: rgba(244,244,245,.56); --faint: rgba(244,244,245,.14); --glass: rgba(14,15,18,.72); --red: #e82127; }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: var(--fg); user-select: none; -webkit-user-select: none; touch-action: none;
-      font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
     #app canvas { display: block; }
     .hide { display: none !important; }
-    .lbl { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+    .lbl { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
     .num { font-variant-numeric: tabular-nums; }
+    kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 5px; background: rgba(255,255,255,.1); font: 500 10.5px ui-monospace, monospace; color: var(--fg); }
 
-    /* in-game HUD: only while playing */
-    .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
-    body:not(.playing) .hud { display: none; }
-    #tl { top: max(16px, env(safe-area-inset-top)); left: 20px; }
-    #tl b { font-size: 13px; letter-spacing: .3em; font-weight: 600; }
-    #dash { bottom: max(22px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); text-align: center; }
-    #spd { font-size: 68px; font-weight: 200; line-height: 1; }
-    #bar { width: 220px; height: 3px; background: rgba(255,255,255,.18); margin: 10px auto 5px; border-radius: 2px; overflow: hidden; }
-    #air { height: 100%; background: var(--fg); width: 100%; transition: width .1s; }
-    #bl, #br { bottom: max(26px, env(safe-area-inset-bottom)); }
+    /* ---------- HUD (only while playing) ---------- */
+    .hud { position: fixed; pointer-events: none; }
+    body:not(.playing) .hud { display: none !important; }
+    #tl { top: max(20px, env(safe-area-inset-top)); left: 22px; display: flex; align-items: baseline; gap: 14px; }
+    #tl b { font-size: 12px; letter-spacing: .38em; font-weight: 500; }
+    #mode { font-size: 11.5px; color: var(--dim); }
+    #dash { bottom: max(26px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); text-align: center; min-width: 200px; }
+    #spd { font-size: 60px; font-weight: 250; line-height: 1; letter-spacing: -.02em; text-shadow: 0 2px 16px rgba(0,0,0,.6); }
+    #dash .lbl { margin-top: 4px; }
+    #bar { width: 160px; height: 2px; background: var(--faint); margin: 12px auto 6px; border-radius: 2px; overflow: hidden; }
+    #air { height: 100%; background: var(--fg); width: 100%; transition: width .15s linear; }
+    #air.low { background: var(--red); }
+    #bl, #br { bottom: max(30px, env(safe-area-inset-bottom)); transition: opacity .3s; }
     #bl { left: 24px; } #br { right: 24px; text-align: right; }
-    .big { font-size: 30px; font-weight: 300; }
-    #toast { top: 18%; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 300; opacity: 0; transition: opacity .4s; white-space: nowrap; }
-    #help { top: 16px; right: 70px; font-size: 12px; line-height: 1.8; background: rgba(0,0,0,.5); padding: 12px 16px; border-radius: 10px; backdrop-filter: blur(6px); }
-    kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; text-align: center; font: 11px ui-monospace, monospace; }
-    #b-pause { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 16px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.4); color: #fff; font-size: 15px; cursor: pointer; }
-    body:not(.playing) #b-pause { display: none; }
-    #share { position: fixed; top: calc(18% + 44px); left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 99px; background: #fff; color: #000; font-size: 13px; font-weight: 600; text-decoration: none; }
+    .big { font-size: 26px; font-weight: 300; margin-top: 2px; }
+    body.ground #br { opacity: 0; }
+    #toast { top: 16%; left: 50%; transform: translateX(-50%); font-size: 15px; font-weight: 500; opacity: 0; transition: opacity .35s;
+      white-space: nowrap; padding: 10px 18px; border-radius: 99px; background: var(--glass); backdrop-filter: blur(12px); }
+    #hint { bottom: max(136px, calc(env(safe-area-inset-bottom) + 112px)); left: 50%; transform: translateX(-50%); display: flex; gap: 16px; align-items: center;
+      font-size: 12px; color: var(--dim); white-space: nowrap; padding: 9px 16px; border-radius: 99px; background: var(--glass); backdrop-filter: blur(12px); transition: opacity 1s; }
+    #hint.gone { opacity: 0; }
+    #help { top: 66px; right: 16px; font-size: 12px; line-height: 2.1; background: var(--glass); padding: 14px 18px; border-radius: 14px; backdrop-filter: blur(12px); color: var(--dim); }
+    #help b { color: var(--fg); font-weight: 500; display: inline-block; min-width: 76px; }
+    .round { position: fixed; top: max(16px, env(safe-area-inset-top)); width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--glass); backdrop-filter: blur(12px); color: var(--fg); font: 600 13px system-ui; cursor: pointer; }
+    #b-pause { right: 16px; font-size: 11px; } #b-help { right: 62px; }
+    body:not(.playing) .round { display: none !important; }
+    #share { position: fixed; top: calc(16% + 52px); left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 99px; background: var(--fg); color: #000; font-size: 12.5px; font-weight: 600; text-decoration: none; }
 
-    /* menus */
-    .panel { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: max(28px, env(safe-area-inset-top)) 36px max(28px, env(safe-area-inset-bottom));
-      background: linear-gradient(90deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,0) 70%); }
-    .panel h1 { font-size: clamp(40px, 7vw, 84px); font-weight: 200; letter-spacing: .32em; margin: 0 0 6px; }
-    .panel h2 { font-size: 26px; font-weight: 300; letter-spacing: .2em; margin: 0 0 18px; }
-    .tag { color: var(--dim); max-width: 420px; line-height: 1.5; margin: 0 0 26px; font-size: 15px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-    button.btn { font: inherit; font-size: 14px; letter-spacing: .08em; padding: 13px 26px; border-radius: 6px; cursor: pointer; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.06); color: #fff; }
-    button.btn:hover, button.btn:focus-visible { background: rgba(255,255,255,.16); outline: none; }
-    button.primary { background: #fff; color: #000; border-color: #fff; font-weight: 600; padding: 15px 44px; }
-    button.primary:hover { background: #ddd; }
-    button.sel { border-color: #fff; background: rgba(255,255,255,.2); }
-    .trim small { display: block; font-size: 11px; color: var(--dim); letter-spacing: 0; margin-top: 3px; }
-    ul.recs { list-style: none; padding: 0; margin: 0 0 22px; max-width: 380px; font-size: 13px; }
-    ul.recs li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.1); }
-    ul.recs b { font-weight: 500; }
-    .foot { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 18px; line-height: 1.6; }
-    .foot a { color: rgba(255,255,255,.7); }
-    #pause { background: rgba(0,0,0,.72); backdrop-filter: blur(8px); justify-content: center; align-items: flex-start; }
+    /* ---------- menus ---------- */
+    .panel { position: fixed; inset: 0; display: flex; align-items: center; padding: 32px max(32px, 5vw); }
+    .card { width: min(392px, 100%); background: var(--glass); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border-radius: 20px; padding: 30px 28px 22px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06); }
+    .card h1 { font-size: 30px; font-weight: 300; letter-spacing: .42em; margin: 8px 0 10px; }
+    .card h2 { font-size: 16px; font-weight: 400; letter-spacing: .32em; margin: 0 0 18px; }
+    .tag { color: var(--dim); line-height: 1.55; margin: 0 0 22px; font-size: 13.5px; }
+    .seg { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border-radius: 12px; background: rgba(255,255,255,.06); margin-bottom: 12px; }
+    .seg button { font: inherit; border: 0; background: transparent; color: var(--dim); padding: 9px 4px 8px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 500; transition: background .2s, color .2s; }
+    .seg button small { display: block; font-size: 10px; font-weight: 400; margin-top: 2px; opacity: .8; }
+    .seg button.sel { background: rgba(255,255,255,.14); color: var(--fg); }
+    button.btn { font: inherit; font-size: 13px; padding: 12px 16px; border-radius: 12px; cursor: pointer; border: 0; background: rgba(255,255,255,.07); color: var(--fg); transition: background .2s; }
+    button.btn:hover, button.btn:focus-visible { background: rgba(255,255,255,.14); outline: none; }
+    button.primary { width: 100%; background: var(--fg); color: #000; font-weight: 600; font-size: 14px; letter-spacing: .14em; padding: 15px; margin: 6px 0 10px; }
+    button.primary:hover, button.primary:focus-visible { background: #fff; }
+    .row { display: flex; gap: 8px; }
+    .row .btn { flex: 1; font-size: 12px; color: var(--dim); }
+    .recs { margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid var(--faint); font-size: 12.5px; }
+    .recs .lbl { margin-bottom: 8px; }
+    .recs ul { list-style: none; padding: 0; margin: 0; }
+    .recs li { display: flex; justify-content: space-between; padding: 4px 0; color: var(--dim); }
+    .recs li b { color: var(--fg); font-weight: 500; }
+    .foot { font-size: 10.5px; color: rgba(244,244,245,.38); margin-top: 18px; line-height: 1.6; }
+    .foot a { color: var(--dim); }
+    #pause { justify-content: center; background: rgba(0,0,0,.45); }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #000; font-size: 11px; letter-spacing: .4em; color: var(--dim); text-align: center; padding: 30px; }
+    @media (max-width: 700px) { .panel { align-items: flex-end; padding: 16px; } .card { width: 100%; padding: 22px 20px 18px; } .card h1 { font-size: 24px; } }
 
-    #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #000; font-size: 13px; letter-spacing: .3em; color: var(--dim); text-align: center; padding: 30px; }
-
-    /* touch controls */
+    /* ---------- touch ---------- */
     #touch { position: fixed; inset: auto 0 0 0; height: 46vh; pointer-events: none; }
     body:not(.playing) #touch { display: none; }
     #touch .pad { position: absolute; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; gap: 10px; pointer-events: auto; }
     #touch .l { left: 14px; } #touch .r { right: 14px; flex-direction: row-reverse; }
-    #touch button { width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.35); color: #fff; font: 600 12px system-ui; touch-action: none; }
-    #touch button.on { background: rgba(255,255,255,.35); }
+    #touch button { width: 62px; height: 62px; border-radius: 50%; border: 0; background: var(--glass); backdrop-filter: blur(10px); color: var(--fg); font: 600 11px system-ui; touch-action: none; }
+    #touch button.on { background: rgba(255,255,255,.3); }
     #touch .col { display: flex; flex-direction: column; gap: 10px; }
-    @media (pointer: coarse) { #dash { bottom: 120px; } #spd { font-size: 44px; } #bl, #br { display: none; } }
+    @media (pointer: coarse) { #dash { bottom: 118px; } #spd { font-size: 42px; } #bl, #br, #hint, #b-help { display: none; } }
   </style>
 </head>
 <body>
@@ -83,48 +99,51 @@
   </script>
   <div id="app"></div>
 
-  <div class="hud" id="tl"><b>ROADSTER</b><div class="lbl" id="mode"></div></div>
+  <div class="hud" id="tl"><b>ROADSTER</b><span id="mode"></span></div>
   <div class="hud" id="toast"></div>
+  <div class="hud" id="hint"><span><kbd>W</kbd> drive</span><span><kbd>A</kbd><kbd>D</kbd> steer</span><span><kbd>Space</kbd> lift</span><span><kbd>Shift</kbd> boost</span><span><kbd>H</kbd> all controls</span></div>
   <div class="hud" id="dash">
     <div id="spd" class="num">0</div><div class="lbl">km/h · <span id="mph">0 mph</span></div>
-    <div id="bar"><div id="air"></div></div><div class="lbl">Thruster air · <span id="psi" class="num"></span></div>
+    <div id="bar"><div id="air"></div></div><div class="lbl">Air · <span id="psi" class="num"></span></div>
   </div>
   <div class="hud" id="bl"><div class="lbl">G-force</div><div class="big num" id="g">1.0</div></div>
-  <div class="hud" id="br"><div class="lbl">Altitude m</div><div class="big num" id="alt">0.0</div></div>
-  <div class="hud" id="help">
-    <kbd>W</kbd><kbd>S</kbd> drive / brake · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>X</kbd> handbrake<br>
-    <kbd>Shift</kbd> rear thrusters · <kbd>Space</kbd> lift thrusters<br>
-    In the air: <kbd>W</kbd><kbd>S</kbd> pitch · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> yaw<br>
-    <kbd>F</kbd> fans · <kbd>V</kbd> track mode · <kbd>G</kbd> easy/sim · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> trim<br>
-    <kbd>C</kbd> camera · <kbd>R</kbd> right car · <kbd>T</kbd> restart · <kbd>M</kbd> mute · <kbd>Esc</kbd> pause · <kbd>H</kbd> hide<br>
-    Five cars at 120 m: hold <kbd>Space</kbd> from ~90 m · Wall at 260 m
+  <div class="hud" id="br"><div class="lbl">Altitude</div><div class="big num"><span id="alt">0.0</span> m</div></div>
+  <div class="hud hide" id="help">
+    <b>Drive</b> <kbd>W</kbd><kbd>S</kbd> gas / brake · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>X</kbd> handbrake<br>
+    <b>Jets</b> <kbd>Shift</kbd> rear boost · <kbd>Space</kbd> lift<br>
+    <b>In the air</b> <kbd>W</kbd><kbd>S</kbd> pitch · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> yaw<br>
+    <b>Car</b> <kbd>F</kbd> fans · <kbd>V</kbd> track mode · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> trim · <kbd>G</kbd> easy / sim<br>
+    <b>Game</b> <kbd>C</kbd> camera · <kbd>R</kbd> flip upright · <kbd>T</kbd> restart · <kbd>M</kbd> mute · <kbd>Esc</kbd> pause<br>
+    <b>Challenges</b> jump lane on the left at 120 m · wall at 260 m
   </div>
-  <button id="b-pause" aria-label="Pause">❚❚</button>
+  <button class="round" id="b-help" aria-label="Controls">?</button>
+  <button class="round" id="b-pause" aria-label="Pause">❚❚</button>
   <a id="share" class="hide" target="_blank" rel="noopener">Share on X</a>
 
   <section id="menu" class="panel hide">
-    <div class="lbl" style="margin-bottom:10px">Fan-made sim · October 2026 reveal</div>
-    <h1>ROADSTER</h1>
-    <p class="tag">Drive it, stick it to a 170° wall with the suction fans, fire the cold-gas thrusters and jump five cars. Physics from every number published at the reveal.</p>
-    <div class="row">
-      <button class="btn trim" data-trim="Performance">Performance<small>fans + aero, no jets</small></button>
-      <button class="btn trim" data-trim="Thrust">Thrust<small>+ rear jets, 0-60 &lt;0.9 s</small></button>
-      <button class="btn trim" data-trim="Rocket">Rocket<small>+ lift jets, it flies</small></button>
-    </div>
-    <div class="row">
+    <div class="card">
+      <div class="lbl">Fan-made sim · October 2026 reveal</div>
+      <h1>ROADSTER</h1>
+      <p class="tag">Stick it to a 170° wall with the suction fans, fire the cold-gas jets, jump five cars.</p>
+      <div class="seg">
+        <button data-trim="Performance">Performance<small>no jets</small></button>
+        <button data-trim="Thrust">Thrust<small>rear jets</small></button>
+        <button data-trim="Rocket">Rocket<small>it flies</small></button>
+      </div>
       <button class="btn primary" id="b-play">DRIVE</button>
-      <button class="btn" id="t-easy"></button>
-      <button class="btn" id="t-mute"></button>
+      <div class="row"><button class="btn" id="t-easy"></button><button class="btn" id="t-mute"></button></div>
+      <div class="recs"><div class="lbl">Your records</div><ul id="recs"></ul></div>
+      <div class="foot">Fan project, not affiliated with Tesla or SpaceX. Unknown specs are estimates.<br>Sponsor a billboard: <a href="https://x.com/medevsmaker" target="_blank" rel="noopener">@medevsmaker</a></div>
     </div>
-    <ul class="recs" id="recs"></ul>
-    <div class="foot">Fan-made project, not affiliated with or endorsed by Tesla or SpaceX. Specs from public reveal coverage; unknowns are estimates.<br>
-      Billboard and sponsor slots open: <a href="https://x.com/medevsmaker" target="_blank" rel="noopener">DM @medevsmaker</a></div>
   </section>
 
   <section id="pause" class="panel hide">
-    <h2>PAUSED</h2>
-    <div class="row"><button class="btn primary" id="b-resume">RESUME</button><button class="btn" id="b-restart">Restart</button><button class="btn" id="b-menu">Main menu</button></div>
-    <ul class="recs" id="recs2"></ul>
+    <div class="card">
+      <h2>PAUSED</h2>
+      <button class="btn primary" id="b-resume">RESUME</button>
+      <div class="row"><button class="btn" id="b-restart">Restart</button><button class="btn" id="b-menu">Main menu</button></div>
+      <div class="recs"><div class="lbl">Your records</div><ul id="recs2"></ul></div>
+    </div>
   </section>
 
   <div id="touch" class="hide">

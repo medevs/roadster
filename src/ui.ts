@@ -24,10 +24,11 @@ export const LABEL: Record<keyof Records, [string, (v: number) => string]> = {
 };
 
 export function renderRecords(el: HTMLElement, r: Records) {
-  el.innerHTML = (Object.keys(LABEL) as (keyof Records)[]).map(k => {
+  const rows = (Object.keys(LABEL) as (keyof Records)[]).filter(k => r[k]).map(k => {
     const [name, fmt] = LABEL[k];
-    return `<li><span>${name}</span><b>${r[k] ? fmt(r[k]) : '—'}</b></li>`;
-  }).join('');
+    return `<li><span>${name}</span><b>${fmt(r[k])}</b></li>`;
+  });
+  el.innerHTML = rows.join('') || '<li>None yet. Hit 0–60, clear the jump lane, climb the wall.</li>';
 }
 
 export function shareUrl(text: string) {

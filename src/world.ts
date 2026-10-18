@@ -5,6 +5,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 
 export const RAMP = { z0: 260, R: 11, width: 12, maxAngle: THREE.MathUtils.degToRad(170) };
 export const JUMP_ROW_Z = 120;
+export const JUMP_LANE_X = 4.6; // +X = driver's left: parked cars fill the left half, the right half stays open road
 export const ROW = { end: 0, semi: [0, 0, 0] as number[] }; // filled by buildWorld
 // Paid slots. Empty slots advertise themselves; a buyer replaces one entry.
 export const SPONSORS = [
@@ -17,11 +18,11 @@ function saltTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#5d5a55'; g.fillRect(0, 0, 512, 512);
+  g.fillStyle = '#34322f'; g.fillRect(0, 0, 512, 512);
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 9000; i++) { // grain
-    const v = 80 + rnd() * 30;
+    const v = 44 + rnd() * 22;
     g.fillStyle = `rgba(${v},${v - 3},${v - 8},0.35)`;
     g.fillRect(rnd() * 512, rnd() * 512, 2, 2);
   }
@@ -54,8 +55,8 @@ export function buildWorld(scene: THREE.Scene, world: RAPIER.World) {
     new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, fog: false }));
   scene.add(stars);
 
-  scene.add(new THREE.HemisphereLight(0x8090b0, 0x302820, 0.6));
-  const moon = new THREE.DirectionalLight(0xc8d4ff, 1.6);
+  scene.add(new THREE.HemisphereLight(0x6a7896, 0x1c1a17, 0.32));
+  const moon = new THREE.DirectionalLight(0xc8d4ff, 0.95);
   moon.position.set(-40, 80, -30);
   moon.castShadow = true;
   moon.shadow.mapSize.set(2048, 2048);
@@ -78,13 +79,27 @@ export function buildWorld(scene: THREE.Scene, world: RAPIER.World) {
     l.rotation.x = -Math.PI / 2; l.position.set(x, 0.02, RAMP.z0 / 2 - 20); scene.add(l);
   }
   const lampGeo = new THREE.BoxGeometry(0.3, 0.15, 0.3);
-  const lampMat = new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff2010, emissiveIntensity: 3 });
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff2010, emissiveIntensity: 2 });
   const lamps = new THREE.InstancedMesh(lampGeo, lampMat, 2 * Math.ceil((RAMP.z0 + 40) / 10));
   let n = 0;
   const m = new THREE.Matrix4();
   for (let z = -20; z < RAMP.z0 + 20; z += 10) for (const x of [-8.5, 8.5]) lamps.setMatrixAt(n++, m.makeTranslation(x, 0.08, z));
   lamps.count = n;
   scene.add(lamps);
+
+  // centre dashes split the open lane (right) from the jump lane (left)
+  for (let z = 6; z < RAMP.z0 - 30; z += 8) {
+    const d = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 3.5), lineMat);
+    d.rotation.x = -Math.PI / 2; d.position.set(0, 0.021, z); scene.add(d);
+  }
+  const laneC = document.createElement('canvas'); laneC.width = 512; laneC.height = 256;
+  const lg = laneC.getContext('2d')!; lg.fillStyle = '#e8e8e8'; lg.font = 'bold 110px system-ui'; lg.textAlign = 'center';
+  lg.fillText('JUMP', 256, 110); lg.fillText('LANE', 256, 230);
+  const laneTex = new THREE.CanvasTexture(laneC);
+  for (const z of [40, 85]) {
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(5, 2.5), new THREE.MeshStandardMaterial({ map: laneTex, transparent: true, roughness: 0.9 }));
+    t.rotation.x = -Math.PI / 2; t.rotation.z = Math.PI; t.position.set(JUMP_LANE_X + 0.8, 0.022, z); scene.add(t);
+  }
 
   // start line
   const start = new THREE.Mesh(new THREE.PlaneGeometry(15, 0.6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
@@ -160,9 +175,9 @@ export function buildWorld(scene: THREE.Scene, world: RAPIER.World) {
       const t = new THREE.Mesh(tyre, tyreMat); t.position.set(tx, 0.36, tz); g.add(t);
     }
     g.traverse(o => { o.castShadow = o.receiveShadow = true; });
-    g.position.set(0, 0.02, z);
+    g.position.set(JUMP_LANE_X, 0.02, z);
     scene.add(g);
-    world.createCollider(RAPIER.ColliderDesc.cuboid(l / 2, h / 2, w / 2).setTranslation(0, h / 2 + 0.05, z));
+    world.createCollider(RAPIER.ColliderDesc.cuboid(l / 2, h / 2, w / 2).setTranslation(JUMP_LANE_X, h / 2 + 0.05, z));
     if (h > 3) ROW.semi = [z - w / 2, z + w / 2, h + 0.05];
     z += w / 2 + 0.6;
   }
@@ -177,7 +192,7 @@ export function buildWorld(scene: THREE.Scene, world: RAPIER.World) {
     g.font = 'bold 120px system-ui'; g.fillText(s.title, 512, 250);
     g.font = '52px system-ui'; g.fillText(s.sub, 512, 360);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), new THREE.MeshBasicMaterial({ map: tex }));
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 }));
     const side = i % 2 ? 1 : -1;
     board.position.set(side * 22, 7, 60 + i * 55);
     board.rotation.y = side * -0.5 + Math.PI; // faces the oncoming car

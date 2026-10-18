@@ -40,20 +40,20 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMappingExposure = 0.82;
 document.getElementById('app')!.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.55;
+scene.environmentIntensity = 0.3;
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 3000);
 // glow on light bars, neon and thruster plumes; skipped on phones to keep 60 fps
 const LOW = matchMedia('(pointer: coarse)').matches;
 if (LOW) { renderer.setPixelRatio(1); renderer.shadowMap.enabled = false; }
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-if (!LOW) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.5, 0.85));
+if (!LOW) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.4, 1.05));
 composer.addPass(new OutputPass());
 addEventListener('resize', () => {
   composer.setSize(innerWidth, innerHeight);
@@ -68,12 +68,12 @@ const { moon } = buildWorld(scene, world);
 // ---- car ----
 const car = createRoadsterModel();
 scene.add(car.root);
-const head = new THREE.SpotLight(0xf4f7ff, 60, 120, 0.45, 0.5, 1.2);
+const head = new THREE.SpotLight(0xf4f7ff, 22, 90, 0.42, 0.6, 1.5);
 head.position.set(0, 0.6, 2.1); head.target.position.set(0, 0, 20);
 car.root.add(head, head.target);
 
-const START = { pos: new THREE.Vector3(0, 0.05, 0), rot: new THREE.Quaternion() };
-const chassis = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 0.05, 0).setCanSleep(false).setCcdEnabled(true)
+const START = { pos: new THREE.Vector3(-3.2, 0.05, 0), rot: new THREE.Quaternion() };
+const chassis = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(-3.2, 0.05, 0).setCanSleep(false).setCcdEnabled(true)
   .setAngularDamping(0.3));
 world.createCollider(RAPIER.ColliderDesc.cuboid(0.92, 0.22, 2.08).setTranslation(0, 0.48, 0).setMass(T.mass * 0.92).setFriction(0.4), chassis);
 world.createCollider(RAPIER.ColliderDesc.cuboid(0.75, 0.14, 1.1).setTranslation(0, 0.96, -0.4).setMass(T.mass * 0.08).setFriction(0.4), chassis);
@@ -113,7 +113,7 @@ const S = {
   records: loadRecords() as Records, flipT: 0, rowOk: false, rowClear: Infinity, wallMax: 0,
   trim: 'Rocket' as Trim, fan: 1, track: false, cam: 0,
   air: T.airKg, steer: 0, airborne: 0, maxAlt: 0, maxG: 0,
-  zeroT: -1, zeroDone: 0, prevVel: new THREE.Vector3(), g: 1, mainT: 0, liftT: [0, 0, 0, 0], brake: false, speed: 0, alt: 0,
+  pedal: 0, zeroT: -1, zeroDone: 0, prevVel: new THREE.Vector3(), g: 1, mainT: 0, liftT: [0, 0, 0, 0], brake: false, speed: 0, alt: 0,
   wheelsDown: 0, t: 0,
 };
 (window as any).__S = S; (window as any).__chassis = chassis; (window as any).__vehicle = vehicle;
@@ -151,7 +151,9 @@ function step(dt: number) {
   S.wheelsDown = contacts;
   const onGround = contacts >= 2;
 
-  const thr = down('KeyW', 'ArrowUp') ? 1 : 0;
+  const thrKey = down('KeyW', 'ArrowUp') ? 1 : 0;
+  S.pedal += (thrKey - S.pedal) * Math.min(1, dt * (thrKey ? 6 : 12));
+  const thr = S.pedal > 0.02 ? S.pedal : 0;
   const rev = down('KeyS', 'ArrowDown') ? 1 : 0;
   const steerIn = (down('KeyA', 'ArrowLeft') ? 1 : 0) - (down('KeyD', 'ArrowRight') ? 1 : 0);
   const handbrake = down('KeyX');
@@ -160,7 +162,7 @@ function step(dt: number) {
   const m = T.mass, g = 9.81;
   const fanF = T.fanPull[S.fan] * m * g;
   let drive = 0;
-  if (thr && vF < T.vmax) drive = Math.min(T.driveForceCap * m * g, T.power / Math.max(Math.abs(vF), 1));
+  if (thr && vF < T.vmax) drive = thr * Math.min(T.driveForceCap * m * g, T.power / Math.max(Math.abs(vF), 1));
   if (rev) drive = vF > 1 ? 0 : -0.35 * m * g;
   const braking = rev && vF > 1;
   S.brake = braking || handbrake;
@@ -170,7 +172,7 @@ function step(dt: number) {
   }
   // speed-sensitive steer, eased
   const maxSteer = 0.6 / (1 + Math.abs(vF) / 14);
-  S.steer += (steerIn * maxSteer - S.steer) * Math.min(1, dt * 8);
+  S.steer += (steerIn * maxSteer - S.steer) * Math.min(1, dt * (steerIn ? 4 : 6)); // eased like a real rack
   vehicle.setWheelSteering(0, S.steer); vehicle.setWheelSteering(1, S.steer);
   vehicle.setWheelSideFrictionStiffness(2, handbrake ? 0.35 : 1);
   vehicle.setWheelSideFrictionStiffness(3, handbrake ? 0.35 : 1);
@@ -409,7 +411,8 @@ function syncToggles() {
   $('t-mute').textContent = `Sound: ${S.muted ? 'Off' : 'On'}`;
   document.querySelectorAll<HTMLElement>('[data-trim]').forEach(b => b.classList.toggle('sel', b.dataset.trim === S.trim));
 }
-const play = () => { audio.start(); setMode('play'); };
+let hinted = false;
+const play = () => { audio.start(); setMode('play'); if (!hinted) { hinted = true; setTimeout(() => $('hint').classList.add('gone'), 9000); } };
 $('b-play').onclick = play;
 $('b-resume').onclick = play;
 $('b-restart').onclick = () => { resetCar(true); play(); };
@@ -417,8 +420,9 @@ $('b-menu').onclick = () => { resetCar(true); setMode('menu'); };
 $('t-easy').onclick = () => { S.easy = !S.easy; syncToggles(); };
 $('t-mute').onclick = () => { S.muted = !S.muted; syncToggles(); };
 $('b-pause').onclick = () => setMode('paused');
+$('b-help').onclick = () => $('help').classList.toggle('hide');
 document.querySelectorAll<HTMLElement>('[data-trim]').forEach(b => b.onclick = () => { S.trim = b.dataset.trim as Trim; syncToggles(); });
-if (touch) $('help').classList.add('hide');
+
 
 function drawScreen() {
   const { canvas, tex } = car.screen, c = canvas.getContext('2d')!;
@@ -433,21 +437,32 @@ function drawScreen() {
   tex.needsUpdate = true;
 }
 
-const CAMS = ['CHASE', 'COCKPIT', 'TRACKSIDE'];
+
 function updateHud() {
   $('spd').textContent = String(Math.round(S.speed * 3.6));
   $('mph').textContent = `${Math.round(S.speed * 2.237)} mph`;
   $('g').textContent = S.g.toFixed(1);
   $('alt').textContent = S.alt.toFixed(1);
+  $('air').classList.toggle('low', S.air < T.airKg * 0.2);
+  document.body.classList.toggle('ground', S.alt < 1);
   $('air').style.width = `${(100 * S.air / T.airKg).toFixed(1)}%`;
   $('psi').textContent = `${Math.round(T.psiFull * S.air / T.airKg)} psi`;
-  $('mode').textContent = `${S.trim} · Fans ${FAN_NAMES[S.fan]} · ${S.track ? 'Track' : 'Road'} · ${CAMS[S.cam]}`;
+  $('mode').textContent = `${S.trim} · fans ${FAN_NAMES[S.fan].toLowerCase()}${S.track ? ' · track' : ''}${S.easy ? '' : ' · sim'}`;
+}
+
+// ---- render pose: interpolated between the last two physics states ----
+const prevP = new THREE.Vector3(), prevQ = new THREE.Quaternion(), RP = new THREE.Vector3(), RQ = new THREE.Quaternion();
+let alpha = 1;
+function snapPrev() { prevP.copy(chassis.translation() as any); prevQ.copy(chassis.rotation() as any); }
+function renderPose() {
+  RP.copy(prevP).lerp(chassis.translation() as any, alpha);
+  RQ.copy(prevQ).slerp(new THREE.Quaternion().copy(chassis.rotation() as any), alpha);
 }
 
 // ---- cameras ----
 const camPos = new THREE.Vector3(0, 3, -8), camLook = new THREE.Vector3();
 function updateCamera(dt: number) {
-  const p = v3(chassis.translation()), q = new THREE.Quaternion().copy(chassis.rotation() as any);
+  const p = RP.clone(), q = RQ.clone();
   const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
   let view = (window as any).__view as number[] | undefined; // debug: [x,y,z] offset to look at the car from
@@ -466,10 +481,13 @@ function updateCamera(dt: number) {
       .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.08));
     camera.up.copy(up);
   } else if (S.cam === 0) { // chase, follows the car's frame so the wall climb stays readable
-    const want = p.clone().addScaledVector(fwd, -7).addScaledVector(up, 2.3);
-    camPos.lerp(want, 1 - Math.exp(-dt * 5));
-    camLook.lerp(p.clone().addScaledVector(up, 0.9).addScaledVector(fwd, 2), 1 - Math.exp(-dt * 10));
-    camera.up.lerp(up, 1 - Math.exp(-dt * 3)).normalize();
+    const flat = S.wheelsDown >= 2 && up.y > 0.85;
+    const f = flat ? new THREE.Vector3(fwd.x, 0, fwd.z).normalize() : fwd;
+    const u = flat ? new THREE.Vector3(0, 1, 0) : up;
+    const want = p.clone().addScaledVector(f, -6.5).addScaledVector(u, 2.1);
+    camPos.lerp(want, 1 - Math.exp(-dt * 9));
+    camLook.lerp(p.clone().addScaledVector(u, 0.8).addScaledVector(f, 3), 1 - Math.exp(-dt * 8));
+    camera.up.lerp(u, 1 - Math.exp(-dt * 2.5)).normalize();
     camera.position.copy(camPos); camera.lookAt(camLook);
   } else { // trackside: fixed camera beside the strip, jumps ahead as the car passes
     const ahead = Math.round((p.z + 30) / 60) * 60;
@@ -477,15 +495,15 @@ function updateCamera(dt: number) {
     camera.up.set(0, 1, 0);
     camera.position.copy(camPos); camera.lookAt(p.clone().add(new THREE.Vector3(0, 0.6, 0)));
   }
-  const fov = S.cam === 1 ? 75 : 60 + Math.min(S.speed / 103, 1) * 22;
-  camera.fov += (fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix();
+  const fov = S.cam === 1 ? 72 : 58 + Math.min(S.speed / 103, 1) * 14;
+  camera.fov += (fov - camera.fov) * Math.min(1, dt * 1.5); camera.updateProjectionMatrix();
   moon.position.copy(p).add(new THREE.Vector3(-40, 80, -30)); moon.target.position.copy(p);
 }
 
 // ---- sync visuals ----
 function syncCar() {
-  const p = chassis.translation(), q = chassis.rotation();
-  car.root.position.set(p.x, p.y, p.z); car.root.quaternion.set(q.x, q.y, q.z, q.w);
+  const q = RQ;
+  car.root.position.copy(RP); car.root.quaternion.copy(RQ);
   for (let i = 0; i < 4; i++) {
     const w = car.wheels[i];
     w.position.y = CONN_Y - (vehicle.wheelSuspensionLength(i) ?? REST);
@@ -536,9 +554,11 @@ renderer.setAnimationLoop(() => {
   if (S.mode === 'play') {
     acc += dt;
     let n = 0; // cap catch-up steps so a slow frame never spirals
-    while (acc >= world.timestep && n++ < 8) { step(world.timestep); acc -= world.timestep; }
+    while (acc >= world.timestep && n++ < 8) { snapPrev(); step(world.timestep); acc -= world.timestep; }
     if (n >= 8) acc = 0;
-  } else acc = 0;
+    alpha = acc / world.timestep;
+  } else { acc = 0; snapPrev(); alpha = 1; }
+  renderPose();
   syncCar();
   updateSmoke(dt);
   updateCamera(dt);
